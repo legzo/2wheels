@@ -19,7 +19,7 @@ router.get('/refresh', function(req, res) {
   getActivities()
   .then((activities) => {
     
-    for (var i = 0; i < activities.length; i++) {
+    for (var i = 0; i < 5; i++) {
       let activity = activities[i];
 
       logger.info(`Querying ${activity.name}`);
@@ -38,11 +38,15 @@ router.get('/refresh', function(req, res) {
             for (var i = 0; i < allEfforts.length; i++) {
               let effort = allEfforts[i];
               if(segments[effort.id] == undefined) {
-                segments[effort.id] = [];
+                segments[effort.id] = {
+                  name: effort.name,
+                  efforts: []
+                };
               }
         
-              segments[effort.id].push(effort.time);
+              segments[effort.id].efforts.push(effort.time);
             }
+
             res.send(segments);
           })
           .catch((err) => {
