@@ -94,31 +94,37 @@ var getActivity = function(id, pastSegments) {
 
     let segmentEfforts = activity.segment_efforts;
 
-    let efforts = {};
+
+    let activitySummary = {
+      efforts : [],
+      summary : []
+    };
     
     for (var i = 0; i < segmentEfforts.length; i++) {
       let segmentEffort = segmentEfforts[i];
       let segmentId = segmentEffort.segment.id;
 
-      efforts[segmentId] = {
+      let segmentEffortSummary = {
         id: segmentId,
         name: segmentEffort.name,
         time: segmentEffort.elapsed_time
-      };
+      }
 
       if(pastSegments && pastSegments[segmentId]) {
         let effortsForSegment = pastSegments[segmentId].efforts;
         // efforts[segmentId].maxTime = Math.max(...effortsForSegment);
         // efforts[segmentId].minTime = Math.min(...effortsForSegment);
         // efforts[segmentId].percent = round(percent(effortsForSegment, segmentEffort.elapsed_time));
-        // efforts[segmentId].values = effortsForSegment;
-        efforts[segmentId].percentile = round(percentile(effortsForSegment, segmentEffort.elapsed_time));        
+        // segmentEffortSummary.values = effortsForSegment;
+        segmentEffortSummary.percentile = round(percentile(effortsForSegment, segmentEffort.elapsed_time));        
       }
 
+      activitySummary.efforts.push(segmentEffortSummary);
+      activitySummary.summary.push(segmentEffortSummary.percentile);
     }
 
     return new Promise(function(resolve) { 
-        resolve(efforts);
+        resolve(activitySummary);
     });
   })
   .catch(function (err) {
