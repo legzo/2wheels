@@ -6,9 +6,11 @@ let colors = require('colors');
 let perfy = require('perfy');
 let logger = require('./logger');
 let config = require('./config.json');
+let fs = require('fs');
 
 let ROOT_URL = 'https://www.strava.com/api/v3';
-let PER_PAGE = 40;
+let PER_PAGE = 200;
+let LIMIT_FOR_REFRESH = 40;
 
 router.get('/refresh', function(req, res) {
   
@@ -19,7 +21,7 @@ router.get('/refresh', function(req, res) {
   getActivities()
   .then((activities) => {
     
-    for (var i = 0; i < 5; i++) {
+    for (var i = 0; i < activities.length ; i++) {
       let activity = activities[i];
 
       logger.info(`Querying ${activity.name}`);
@@ -47,6 +49,9 @@ router.get('/refresh', function(req, res) {
               segments[effort.id].efforts.push(effort.time);
             }
 
+            let filename = './segments.json';
+            fs.writeFile(filename, JSON.stringify(segments, null, 2) , 'utf-8', () => logger.info('Saved to ' + filename));
+
             res.send(segments);
           })
           .catch((err) => {
@@ -60,9 +65,15 @@ router.get('/refresh', function(req, res) {
 router.get('/activities/:id', function(req, res) {
   
   let id = req.params.id;
-  
-  getActivity(id)
+
+  fs.readFile('./segments.json', 'utf8', (err, data) => {
+    if (err) throw err;
+
+    var pastSegments = JSON.parse(data);
+
+    getActivity(id, pastSegments)
       .then((result) =>  res.send(result));
+  });
 
 });
 
@@ -75,7 +86,7 @@ router.get('/activities', function(req, res) {
 
 });
 
-var getActivity = function(id) {
+var getActivity = function(id, pastSegments) {
   return rp(`${ROOT_URL}/activities/${id}?access_token=${config.access_token}`)
   .then(function(body) {
     
@@ -83,16 +94,27 @@ var getActivity = function(id) {
 
     let segmentEfforts = activity.segment_efforts;
 
-    let efforts = [];
+    let efforts = {};
     
     for (var i = 0; i < segmentEfforts.length; i++) {
       let segmentEffort = segmentEfforts[i];
+      let segmentId = segmentEffort.segment.id;
 
-      efforts.push({
-        id: segmentEffort.segment.id,
+      efforts[segmentId] = {
+        id: segmentId,
         name: segmentEffort.name,
         time: segmentEffort.elapsed_time
-      });
+      };
+
+      if(pastSegments && pastSegments[segmentId]) {
+        let effortsForSegment = pastSegments[segmentId].efforts;
+        // efforts[segmentId].maxTime = Math.max(...effortsForSegment);
+        // efforts[segmentId].minTime = Math.min(...effortsForSegment);
+        // efforts[segmentId].percent = round(percent(effortsForSegment, segmentEffort.elapsed_time));
+        // efforts[segmentId].values = effortsForSegment;
+        efforts[segmentId].percentile = round(percentile(effortsForSegment, segmentEffort.elapsed_time));        
+      }
+
     }
 
     return new Promise(function(resolve) { 
@@ -110,6 +132,8 @@ var getActivities = function() {
     
     let activities = JSON.parse(body);
     let results = [];
+
+    logger.info(`Found ${activities.length} results`);
 
     for (var i = 0; i < activities.length; i++) {
       let activity = activities[i];
@@ -137,6 +161,28 @@ let round = function(number) {
 
 let msToKmH = function(speedInMS) {
   return speedInMS * 60 * 60 / 1000;
+}
+
+let percent = function(array, value) {
+	let max = Math.max(...array);
+	let min = Math.min(...array);
+	return 1 - (value - min) / (max - min);
+}
+
+let percentile = function(arr, v) {
+  if (typeof v !== 'number') throw new TypeError('v must be a number');
+  arr = arr.sort((a, b) => a - b);
+  for (var i = 0, l = arr.length; i  < l; i++) {
+      if (v <= arr[i]) {
+          while (i < l && v === arr[i]) i++;
+          if (i === 0) return 0;
+          if (v !== arr[i-1]) {
+              i += (v - arr[i-1]) / (arr[i] - arr[i-1]);
+          }
+          return i / l;
+      }
+  }
+  return 1;
 }
 
 module.exports = router;
