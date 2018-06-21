@@ -27,7 +27,9 @@ router.get('/refresh', function(req, res) {
       logger.info(`Querying ${activity.name}`);
 
       queries.push(getActivity(activity.id)
-                    .then((efforts) => allEfforts.push.apply(allEfforts, efforts)));      
+                    .then((activitySummary) => { 
+                      allEfforts.push.apply(allEfforts, activitySummary.efforts)
+                    }));
     }
 
     perfy.start('all-done');
